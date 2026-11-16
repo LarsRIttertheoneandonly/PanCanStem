@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tree of Life Browser</title>
+<style>
+:root{--bg:#f7f6f2;--panel:#fff;--ink:#1d2321;--muted:#68716d;--line:#e2e0d8;--accent:#2f7a4f;--accent-soft:#e3f1e8;--chip:#efede6}
+@media (prefers-color-scheme:dark){:root{--bg:#141816;--panel:#1d2220;--ink:#e8ece9;--muted:#9aa49f;--line:#2e3532;--accent:#6cc48f;--accent-soft:#1f3a2a;--chip:#28302c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:18px;margin:0;white-space:nowrap}
+h1 a{color:inherit;text-decoration:none}
+.search{position:relative;flex:1;min-width:220px}
+.search input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font-size:15px}
+.sugg{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;list-style:none;padding:4px;max-height:320px;overflow:auto;display:none;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.sugg li{padding:6px 10px;border-radius:6px;cursor:pointer}
+.sugg li.on,.sugg li:hover{background:var(--accent-soft)}
+main{max-width:1100px;margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px}
+@media (max-width:820px){main{grid-template-columns:1fr}}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px;font-size:13px;color:var(--muted);margin-bottom:10px}
+.crumbs a{color:var(--accent);text-decoration:none;cursor:pointer}
+.crumbs span.sep{opacity:.5}
+.title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.title h2{margin:0;font-size:26px}
+.chip{display:inline-block;background:var(--chip);color:var(--muted);border-radius:99px;padding:1px 9px;font-size:12px}
+.chip.x{background:#f6e3e0;color:#9a3b2c}
+@media (prefers-color-scheme:dark){.chip.x{background:#3a2420;color:#e59a8c}}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 10px}
+.tools input[type=text]{flex:1;min-width:150px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+.tools label{font-size:13px;color:var(--muted);display:flex;gap:4px;align-items:center}
+button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px}
+button:hover{border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px;text-align:left}
+.card:hover{border-color:var(--accent);background:var(--accent-soft)}
+.card b{font-weight:600;word-break:break-word}
+.card small{color:var(--muted)}
+aside{display:flex;flex-direction:column;gap:14px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.box h3{margin:0 0 8px;font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.box img{width:100%;border-radius:8px;max-height:260px;object-fit:cover;background:var(--chip)}
+.box p{margin:8px 0 0;font-size:14px}
+.links a{display:block;color:var(--accent);font-size:14px;margin:3px 0}
+.favs a{display:inline-block;margin:0 6px 6px 0;color:var(--accent);cursor:pointer;font-size:14px}
+.muted{color:var(--muted)}
+.err{color:#b4412f}
+.spin{color:var(--muted);padding:20px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="#805080">🌳 Tree of Life Browser</a></h1>
+  <div class="search">
+    <input id="q" type="text" placeholder="Search any organism or group (e.g. octopus, Felidae, Homo sapiens)…" autocomplete="off">
+    <ul id="sugg" class="sugg"></ul>
+  </div>
+  <button id="back" title="Go up one level">⬆ Up</button>
+  <button id="star" title="Save to favourites">☆ Save</button>
+</header>
+<main>
+  <section>
+    <nav id="crumbs" class="crumbs"></nav>
+    <div class="title"><h2 id="name">Loading…</h2><span id="rank" class="chip"></span><span id="flags"></span></div>
+    <div class="tools">
+      <input id="filter" type="text" placeholder="Filter sub-groups…">
+      <label><input id="hideX" type="checkbox" checked> hide extinct</label>
+      <label><input id="hideU" type="checkbox" checked> hide unplaced</label>
+      <select id="sort"><option value="name">A–Z</option><option value="rank">by rank</option></select>
+    </div>
+    <div id="count" class="muted" style="font-size:13px;margin-bottom:8px"></div>
+    <div id="kids" class="grid"></div>
+  </section>
+  <aside>
+    <div class="box" id="wiki"><h3>About</h3><div class="muted">—</div></div>
+    <div class="box links"><h3>Open elsewhere</h3><div id="links"></div></div>
+    <div class="box favs"><h3>Favourites</h3><div id="favs" class="muted">None yet — press ☆ Save.</div></div>
+  </aside>
+</main>
+<script>
+const API = 'https://api.opentreeoflife.org/v3';
+const ROOT = 805080; // "life"
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cache = new Map();
+let cur = null;
+
+const RANKS = ['domain','superkingdom','kingdom','subkingdom','infrakingdom','superphylum','phylum','subphylum','infraphylum','superclass','class','subclass','infraclass','superorder','order','suborder','infraorder','parvorder','superfamily','family','subfamily','tribe','subtribe','genus','subgenus','species group','species','subspecies','variety','forma'];
+const rankIdx = r => { const i = RANKS.indexOf(r); return i < 0 ? 99 : i; };
+
+async function post(path, body) {
+  const r = await fetch(API + path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function getTaxon(id) {
+  if (cache.has(id)) return cache.get(id);
+  const t = await post('/taxonomy/taxon_info', {ott_id:+id, include_children:true, include_lineage:true});
+  cache.set(id, t);
+  return t;
+}
+
+const isExtinct = f => (f||[]).some(x => /extinct/.test(x));
+const isUnplaced = f => (f||[]).some(x => /incertae_sedis|unplaced|environmental|not_otu|barren|hidden|was_container|inconsistent|major_rank_conflict|merged/.test(x));
+
+async function show(id) {
+  $('name').textContent = 'Loading…'; $('kids').innerHTML = '<div class="spin">Fetching from Open Tree of Life…</div>';
+  $('rank').textContent = ''; $('flags').innerHTML = ''; $('count').textContent = '';
+  let t;
+  try { t = await getTaxon(id); }
+  catch (e) { $('name').textContent = 'Could not load'; $('kids').innerHTML = `<div class="err">Couldn't reach api.opentreeoflife.org (${esc(e.message)}). Check your connection and try again.</div>`; return; }
+  cur = t;
+  document.title = t.name + ' – Tree of Life Browser';
+  $('name').textContent = t.name;
+  $('rank').textContent = t.rank || 'no rank';
+  $('flags').innerHTML = isExtinct(t.flags) ? '<span class="chip x">extinct</span>' : '';
+  const lin = (t.lineage || []).slice().reverse();
+  $('crumbs').innerHTML = lin.map(a => `<a data-id="${a.ott_id}">${esc(a.name)}</a>`).join('<span class="sep">›</span>') || '<span>Root of all life</span>';
+  $('back').disabled = !lin.length;
+  $('filter').value = '';
+  renderKids();
+  renderLinks(t);
+  renderStar();
+  loadWiki(t.name);
+}
+
+function renderKids() {
+  const t = cur; if (!t) return;
+  const f = $('filter').value.trim().toLowerCase();
+  let k = (t.children || []).filter(c =>
+    (!$('hideX').checked || !isExtinct(c.flags)) &&
+    (!$('hideU').checked || !isUnplaced(c.flags)) &&
+    (!f || c.name.toLowerCase().includes(f)));
+  k.sort($('sort').value === 'rank' ? (a,b) => rankIdx(a.rank) - rankIdx(b.rank) || a.name.localeCompare(b.name) : (a,b) => a.name.localeCompare(b.name));
+  const total = (t.children || []).length;
+  $('count').textContent = total ? `Showing ${k.length} of ${total} direct sub-groups` : 'No sub-groups — this is a leaf of the tree.';
+  const shown = k.slice(0, 600);
+  $('kids').innerHTML = shown.map(c => `<button class="card" data-id="${c.ott_id}"><b>${esc(c.name)}</b><small>${esc(c.rank || 'no rank')}${isExtinct(c.flags) ? ' · † extinct' : ''}</small></button>`).join('')
+    + (k.length > shown.length ? `<div class="muted">…and ${k.length - shown.length} more — use the filter box.</div>` : '');
+}
+
+function renderLinks(t) {
+  const n = encodeURIComponent(t.name);
+  $('links').innerHTML = [
+    [`https://tree.opentreeoflife.org/opentree/argus/ottol@${t.ott_id}`, 'Open Tree of Life (tree view)'],
+    [`https://tree.opentreeoflife.org/taxonomy/browse?id=${t.ott_id}`, 'Open Tree taxonomy page'],
+    [`http://tolweb.org/${n}`, 'Tree of Life Web Project (tolweb.org)'],
+    [`https://www.onezoom.org/life.html/@=${t.ott_id}`, 'OneZoom zoomable tree'],
+    [`https://en.wikipedia.org/wiki/${n}`, 'Wikipedia'],
+    [`https://www.inaturalist.org/taxa/search?q=${n}`, 'iNaturalist photos'],
+  ].map(([u,l]) => `<a href="${u}" target="_blank" rel="noopener">${l} ↗</a>`).join('');
+}
+
+let wikiReq = 0;
+async function loadWiki(name) {
+  const me = ++wikiReq;
+  $('wiki').innerHTML = '<h3>About</h3><div class="muted">Loading summary…</div>';
+  try {
+    const r = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name.replace(/ /g,'_')));
+    if (me !== wikiReq) return;
+    if (!r.ok) throw 0;
+    const w = await r.json();
+    if (w.type === 'disambiguation') throw 0;
+    $('wiki').innerHTML = '<h3>About</h3>' + (w.thumbnail ? `<img src="${esc(w.thumbnail.source)}" alt="${esc(name)}" loading="lazy">` : '')
+      + `<p>${esc(w.extract || '')}</p>`;
+  } catch { if (me === wikiReq) $('wiki').innerHTML = '<h3>About</h3><div class="muted">No Wikipedia summary for this group.</div>'; }
+}
+
+// Favourites (stored only in this browser)
+const loadFavs = () => { try { return JSON.parse(localStorage.getItem('tol-favs') || '[]'); } catch { return []; } };
+const saveFavs = f => { try { localStorage.setItem('tol-favs', JSON.stringify(f)); } catch {} };
+function renderFavs() {
+  const f = loadFavs();
+  $('favs').innerHTML = f.length ? f.map(x => `<a data-id="${x.id}">${esc(x.name)}</a>`).join('') : 'None yet — press ☆ Save.';
+}
+function renderStar() { $('star').textContent = loadFavs().some(x => x.id == cur?.ott_id) ? '★ Saved' : '☆ Save'; }
+$('star').onclick = () => {
+  if (!cur) return;
+  let f = loadFavs();
+  f = f.some(x => x.id == cur.ott_id) ? f.filter(x => x.id != cur.ott_id) : [...f, {id:cur.ott_id, name:cur.name}];
+  saveFavs(f); renderFavs(); renderStar();
+};
+
+// Navigation via URL hash so browser back/forward work
+const go = id => { location.hash = id; };
+document.addEventListener('click', e => { const a = e.target.closest('[data-id]'); if (a) { e.preventDefault(); go(a.dataset.id); } });
+$('back').onclick = () => { const l = cur?.lineage; if (l && l.length) go(l[0].ott_id); };
+['filter','hideX','hideU','sort'].forEach(id => $(id).addEventListener('input', renderKids));
+window.addEventListener('hashchange', () => show(location.hash.slice(1) || ROOT));
+
+// Search / autocomplete
+let sTimer, sItems = [], sOn = -1;
+$('q').addEventListener('input', () => {
+  clearTimeout(sTimer);
+  const v = $('q').value.trim();
+  if (v.length < 2) { $('sugg').style.display = 'none'; return; }
+  sTimer = setTimeout(async () => {
+    try {
+      const res = await post('/tnrs/autocomplete_name', {name:v, context_name:'All life'});
+      sItems = (res || []).filter(x => !x.is_suppressed).slice(0, 15); sOn = -1;
+      drawSugg();
+    } catch { sItems = []; drawSugg(); }
+  }, 250);
+});
+function drawSugg() {
+  $('sugg').innerHTML = sItems.length ? sItems.map((x,i) => `<li class="${i===sOn?'on':''}" data-pick="${i}">${esc(x.unique_name)}${x.is_higher ? ' <span class="chip">group</span>' : ''}</li>`).join('') : '<li class="muted">No matches</li>';
+  $('sugg').style.display = 'block';
+}
+$('sugg').addEventListener('mousedown', e => { const li = e.target.closest('[data-pick]'); if (li) pick(+li.dataset.pick); });
+$('q').addEventListener('keydown', e => {
+  if (!sItems.length) return;
+  if (e.key === 'ArrowDown') { sOn = Math.min(sOn + 1, sItems.length - 1); drawSugg(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { sOn = Math.max(sOn - 1, 0); drawSugg(); e.preventDefault(); }
+  else if (e.key === 'Enter') pick(sOn < 0 ? 0 : sOn);
+  else if (e.key === 'Escape') $('sugg').style.display = 'none';
+});
+$('q').addEventListener('blur', () => setTimeout(() => $('sugg').style.display = 'none', 150));
+function pick(i) { const x = sItems[i]; if (!x) return; $('q').value = ''; $('sugg').style.display = 'none'; go(x.ott_id); }
+
+renderFavs();
+show(location.hash.slice(1) || ROOT);
+</script>
+</body>
+</html>
